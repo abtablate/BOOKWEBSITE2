@@ -1,8 +1,7 @@
 <?php
 session_start();
-$conn = new mysqli("HOST", "USERNAME", "PASSWORD", "DATABASE", "MYSQLPORT");
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
+require "db_connection.php";
 $email = $_POST['email'];
 $password = $_POST['password'];
 
@@ -31,7 +30,7 @@ if ($stmt->num_rows > 0) {
     echo "No user found.";
 }
 $stmt->close();
-$conn->close();
+
 ?>
 
 <!-- Add this HTML code where the form is located -->
