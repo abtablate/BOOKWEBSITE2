@@ -348,7 +348,7 @@ if (isset($_SESSION['user_id'])) {
       <div class="profile-section">
         <img src="<?php echo htmlspecialchars($profile_pic); ?>" alt="User Icon" class="user-img" />
         <p>
-          <strong><?php echo htmlspecialchars($username); ?></strong>
+          <strong><?php echo htmlspecialchars($user['bio'] ?? ''); ?></strong>
           <br>
           <span style="font-size:0.95em;color:#9c6b3e;">
             <?php echo isset($_SESSION['role']) ? ucfirst(htmlspecialchars($_SESSION['role'])) : 'User'; ?>
