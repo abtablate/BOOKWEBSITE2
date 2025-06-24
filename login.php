@@ -1,9 +1,6 @@
 <?php
 session_start();
-
 require "db_connection.php";
-$email = $_POST['email'];
-$password = $_POST['password'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'];
@@ -22,7 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id'] = $id;
             $_SESSION['email'] = $email;
             $_SESSION['role'] = $user_role;
-            header("Location: 1.php");
+
+            // 🔁 Redirect to the originally requested page (if any)
+            if (isset($_SESSION['redirect_after_login'])) {
+                $redirect = $_SESSION['redirect_after_login'];
+                unset($_SESSION['redirect_after_login']);
+                header("Location: $redirect");
+            } else {
+                header("Location: 1.php"); // default page
+            }
             exit();
         } else {
             echo "Invalid password.";
@@ -31,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "No user found.";
     }
 }
-
 ?>
+
 
 <!-- Add this HTML code where the form is located -->
 <select id="role" name="role" required>
