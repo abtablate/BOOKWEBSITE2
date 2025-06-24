@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Personal Book Website</title>
+  <link rel="stylesheet" href="login.css">
+  <style>
+    .login-box select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 7px;
+  border: 2px solid #9c6b3e; /* brown border */
+  background: #fff6e3;        /* match input background */
+  color: #3a2a13;             /* dark text */
+  font-size: 1rem;
+  margin-bottom: 8px;
+  outline: none;
+  transition: border 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  box-shadow: 0 2px 8px rgba(42,93,255,0.05);
+}
+
+.login-box select:focus {
+  border: 2px solid #7b522e;  /* darker brown on focus */
+  background: #fff3d1;
+}
+
+.login-box option {
+  background: #fff6e3;
+  color: #3a2a13;
+}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <img src="book.png" alt="Logo">
+      <h1>Personal Book Website</h1>
+    </div>
+    <div class="user">
+      <span>User</span>
+      <img src="github_logo.png" alt="User Icon" class="user-small-img" />
+    </div>
+  </header>
+
+  <main>
+    <div class="login-box">
+      <h2>Sign Up</h2>
+      <form method="post" action="signup.php">
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" placeholder="email" required>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" placeholder="password" required>
+
+        <label for="role">Sign up as:</label>
+        <select id="role" name="role" required>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+
+        <div class="buttons">
+          <button type="submit" name="signup">Sign Up</button>
+          <button type="button" onclick="window.location.href='login.html'">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>
