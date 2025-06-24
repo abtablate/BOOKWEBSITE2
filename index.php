@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <title>Personal Book Website</title>
-  <link rel="stylesheet" href="login.css">
+  <link rel="stylesheet" href="/login.css">
   <style>
     body {
       transition: opacity 0.5s;
