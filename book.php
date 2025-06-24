@@ -1,20 +1,33 @@
 <?php
 session_start();
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
+require "db_connection.php"; // This file must define $pdo (PDO object)
 
-// Get book id from URL
+// Get book ID from URL
 $book_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
+if ($book_id <= 0) {
+    echo "Invalid book ID.";
+    exit;
+}
+
 // Log as recently read if user is logged in
-if (isset($_SESSION['user_id']) && $book_id > 0) {
+if (isset($_SESSION['user_id'])) {
     $user_id = intval($_SESSION['user_id']);
-    $conn->query("DELETE FROM recently_read WHERE user_id=$user_id AND book_id=$book_id");
-    $conn->query("INSERT INTO recently_read (user_id, book_id, read_at) VALUES ($user_id, $book_id, NOW())");
+
+    // Delete old entry
+    $stmt = $pdo->prepare("DELETE FROM recently_read WHERE user_id = ? AND book_id = ?");
+    $stmt->execute([$user_id, $book_id]);
+
+    // Insert new read log
+    $stmt = $pdo->prepare("INSERT INTO recently_read (user_id, book_id, read_at) VALUES (?, ?, NOW())");
+    $stmt->execute([$user_id, $book_id]);
 }
 
 // Get book details
-$result = $conn->query("SELECT * FROM books WHERE id=$book_id");
-$book = $result->fetch_assoc();
+$stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
+$stmt->execute([$book_id]);
+$book = $stmt->fetch(PDO::FETCH_ASSOC);
+
 if (!$book) {
     echo "Book not found.";
     exit;
@@ -22,19 +35,20 @@ if (!$book) {
 
 // Get chapters for this book
 $chapters = [];
-$chapterResult = $conn->query("SELECT * FROM chapters WHERE book_id=$book_id ORDER BY chapter_number ASC");
-while ($row = $chapterResult->fetch_assoc()) {
-    $chapters[] = $row;
-}
+$stmt = $pdo->prepare("SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_number ASC");
+$stmt->execute([$book_id]);
+$chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Check if book is favorite
 $isFavorite = false;
-if (isset($_SESSION['id'])) {
-    $userId = intval($_SESSION['id']);
-    $favCheck = $conn->query("SELECT 1 FROM favorites WHERE user_id=$userId AND book_id=$book_id");
-    $isFavorite = $favCheck->num_rows > 0;
+if (isset($_SESSION['user_id'])) {
+    $userId = intval($_SESSION['user_id']);
+    $stmt = $pdo->prepare("SELECT 1 FROM favorites WHERE user_id = ? AND book_id = ?");
+    $stmt->execute([$userId, $book_id]);
+    $isFavorite = $stmt->fetchColumn() !== false;
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
