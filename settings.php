@@ -1,14 +1,17 @@
 <?php
 session_start();
+require "db_connection.php"; // This must define $pdo (your PDO connection)
+
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.html");
+    header("Location: index.php");
     exit();
 }
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
 
 // Fetch user info
 $user_id = $_SESSION['user_id'];
-$user = $conn->query("SELECT * FROM users WHERE id=$user_id")->fetch_assoc();
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Initialize variables
 $show_otp_form = false;
@@ -24,19 +27,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['profile_pic'])) {
     if (!file_exists($target_dir)) {
         mkdir($target_dir, 0777, true);
     }
-    
+
     $file_extension = pathinfo($_FILES["profile_pic"]["name"], PATHINFO_EXTENSION);
     $new_filename = "user_" . $user_id . "_" . time() . "." . $file_extension;
     $target_file = $target_dir . $new_filename;
-    
-    // Check if image file is a actual image
+
     $check = getimagesize($_FILES["profile_pic"]["tmp_name"]);
-    if($check !== false) {
+    if ($check !== false) {
         if (move_uploaded_file($_FILES["profile_pic"]["tmp_name"], $target_file)) {
-            // Update database with new profile picture path
-            $conn->query("UPDATE users SET profile_pic='$target_file' WHERE id=$user_id");
+            $stmt = $pdo->prepare("UPDATE users SET profile_pic = ? WHERE id = ?");
+            $stmt->execute([$target_file, $user_id]);
             $success_message = "Profile picture updated successfully!";
-            $user['profile_pic'] = $target_file; // Update local user data
+            $user['profile_pic'] = $target_file;
         } else {
             $error_message = "Sorry, there was an error uploading your file.";
         }
@@ -47,16 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['profile_pic'])) {
 
 // Handle other profile updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // When Save is clicked (profile form)
+
+    // Step 1: Send OTP
     if (isset($_POST['start_verification'])) {
-        // Step 1: User submits new info, send OTP
-        $username = $conn->real_escape_string($_POST['username']);
-        $email = $conn->real_escape_string($_POST['email']);
-        $display_name = $conn->real_escape_string($_POST['display_name']);
-        $bio = $conn->real_escape_string($_POST['bio']);
+        $username = $_POST['username'];
+        $email = $_POST['email'];
+        $display_name = $_POST['display_name'];
+        $bio = $_POST['bio'];
         $otp = rand(100000, 999999);
 
-        // Store pending info and OTP in session
         $_SESSION['pending_profile'] = [
             'username' => $username,
             'email' => $email,
@@ -65,41 +66,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'otp' => $otp
         ];
 
-        // Send OTP to email (will fail on localhost, so show on screen)
+        // Send OTP to email (or show for dev)
         $to = $email;
         $subject = "Your OTP Verification Code";
         $message = "Your OTP code is: $otp";
         $headers = "From: noreply@yourdomain.com";
-        @mail($to, $subject, $message, $headers); // Suppress warning on localhost
+        @mail($to, $subject, $message, $headers); // Fails silently on localhost
 
         $show_otp_form = true;
         $pending_email = $email;
-
-        // For local development, show OTP on screen
         $dev_otp_message = "<div style='color:#b00;text-align:center;'>[DEV ONLY] Your OTP is: <b>$otp</b></div>";
     }
-    // When Verify OTP is clicked (OTP form)
+
+    // Step 2: Verify OTP
     elseif (isset($_POST['verify_otp'])) {
-        // Step 2: User submits OTP
         $entered_otp = $_POST['otp'];
         $pending = $_SESSION['pending_profile'] ?? null;
+
         if ($pending && $entered_otp == $pending['otp']) {
-            // OTP correct, update user
-            $username = $pending['username'];
-            $email = $pending['email'];
-            $display_name = $pending['display_name'];
-            $bio = $pending['bio'];
-            
-            $conn->query("UPDATE users SET 
-                username='$username', 
-                email='$email',
-                display_name='$display_name',
-                bio='$bio'
-                WHERE id=$user_id");
-                
-            $_SESSION['username'] = $username;
-            $_SESSION['email'] = $email;
+            $stmt = $pdo->prepare("UPDATE users SET username = ?, email = ?, display_name = ?, bio = ? WHERE id = ?");
+            $stmt->execute([
+                $pending['username'],
+                $pending['email'],
+                $pending['display_name'],
+                $pending['bio'],
+                $user_id
+            ]);
+
+            $_SESSION['username'] = $pending['username'];
+            $_SESSION['email'] = $pending['email'];
             unset($_SESSION['pending_profile']);
+
             $success_message = "Profile updated successfully!";
         } else {
             $show_otp_form = true;
@@ -108,18 +105,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pending_username = $pending['username'] ?? '';
         }
     }
-    // Handle Change Password button click
+
+    // Redirect to change password page
     elseif (isset($_POST['change_password'])) {
         header("Location: change_password.php");
         exit();
     }
-    // Handle Delete Account button click
+
+    // Redirect to delete account page
     elseif (isset($_POST['delete_account'])) {
         header("Location: delete_account.php");
         exit();
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
