@@ -3,9 +3,11 @@ session_start();
 require "db_connection.php"; // This must define $pdo (your PDO connection)
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: index.php");
+    $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
+    header("Location: login.php");
     exit();
-} 
+}
+
 
 // Fetch user info
 $user_id = $_SESSION['user_id'];
