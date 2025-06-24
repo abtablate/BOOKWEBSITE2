@@ -1,32 +1,37 @@
 <?php
 session_start();
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+require "db_connection.php"; // This file must define and return the $pdo PDO object
 
 // Fetch all books
 $books = [];
-$result = $conn->query("SELECT * FROM books");
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $books[] = $row;
-    }
+try {
+    $stmt = $pdo->query("SELECT * FROM books");
+    $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Error fetching books: " . $e->getMessage());
 }
 
 // Fetch user data from users table
 $username = '';
 $profile_pic = 'profile.jpg'; // default image
+
 if (isset($_SESSION['user_id'])) {
     $uid = intval($_SESSION['user_id']);
-    $res = $conn->query("SELECT username, profile_pic FROM users WHERE id=$uid");
-    if ($row = $res->fetch_assoc()) {
-        $username = $row['username'];
-        // Use the profile pic from database if it exists, otherwise use default
-        $profile_pic = !empty($row['profile_pic']) ? $row['profile_pic'] : 'profile.jpg';
+    try {
+        $stmt = $pdo->prepare("SELECT username, profile_pic FROM users WHERE id = ?");
+        $stmt->execute([$uid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row) {
+            $username = $row['username'];
+            $profile_pic = !empty($row['profile_pic']) ? $row['profile_pic'] : 'profile.jpg';
+        }
+    } catch (PDOException $e) {
+        die("Error fetching user data: " . $e->getMessage());
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
