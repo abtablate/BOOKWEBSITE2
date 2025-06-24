@@ -1,6 +1,6 @@
 <?php
 session_start();
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
+$conn = new mysqli("HOST", "USERNAME", "PASSWORD", "DATABASE", PORT);
 if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
 $email = $_POST['email'];
