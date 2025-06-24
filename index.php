@@ -2,8 +2,7 @@
 session_start();
 
 // Database connection (use Railway credentials if hosted there)
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
-if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
+required 'db_connection.php';
 
 // Login process
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
