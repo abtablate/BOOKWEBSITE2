@@ -2,7 +2,7 @@
 session_start();
 
 // Database connection (use Railway credentials if hosted there)
-required "db_connection.php";
+require "db_connection.php";
 
 // Login process
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
