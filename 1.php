@@ -1,10 +1,6 @@
 <?php
 session_start();
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
+require "db_connection.php";
 // Fetch all books
 $books = [];
 $result = $conn->query("SELECT * FROM books");
