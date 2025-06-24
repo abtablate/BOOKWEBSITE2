@@ -5,31 +5,32 @@ require "db_connection.php";
 $email = $_POST['email'];
 $password = $_POST['password'];
 
-$stmt = $conn->prepare("SELECT id, password, role FROM users WHERE email = ?");
-if (!$stmt) {
-    die("Prepare failed: " . $conn->error);
-}
-$stmt->bind_param("s", $email);
-$stmt->execute();
-$stmt->store_result();
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = $_POST['email'];
+    $password = $_POST['password'];
 
-if ($stmt->num_rows > 0) {
-    $stmt->bind_result($id, $hashed_password, $user_role);
-    $stmt->fetch();
-    // Use password_verify if passwords are hashed, otherwise use ($password == $hashed_password)
-    if (password_verify($password, $hashed_password)) {
-        $_SESSION['user_id'] = $id;
-        $_SESSION['email'] = $email;
-        $_SESSION['role'] = $user_role; // 'admin' or 'user'
-        header("Location: 1.php");
-        exit();
+    $stmt = $pdo->prepare("SELECT id, password, role FROM users WHERE email = ?");
+    $stmt->execute([$email]);
+
+    if ($stmt->rowCount() > 0) {
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $hashed_password = $row['password'];
+        $user_role = $row['role'];
+        $id = $row['id'];
+
+        if (password_verify($password, $hashed_password)) {
+            $_SESSION['user_id'] = $id;
+            $_SESSION['email'] = $email;
+            $_SESSION['role'] = $user_role;
+            header("Location: 1.php");
+            exit();
+        } else {
+            echo "Invalid password.";
+        }
     } else {
-        echo "Invalid password.";
+        echo "No user found.";
     }
-} else {
-    echo "No user found.";
 }
-$stmt->close();
 
 ?>
 
