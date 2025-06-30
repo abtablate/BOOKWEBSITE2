@@ -1,11 +1,11 @@
 <?php
 session_start();
+require "db_connection.php"; // this defines $pdo
+
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.html");
     exit();
 }
-
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
 
 // Initialize variables
 $show_otp_form = false;
@@ -15,13 +15,13 @@ $error_message = '';
 
 // Handle password change request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Step 1: User requests password change
+
+    // Step 1: Request password change
     if (isset($_POST['request_password_change'])) {
         $current_password = $_POST['current_password'];
         $new_password = $_POST['new_password'];
         $confirm_password = $_POST['confirm_password'];
-        
-        // Validate inputs
+
         if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
             $error_message = "All fields are required.";
         } elseif ($new_password !== $confirm_password) {
@@ -29,53 +29,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (strlen($new_password) < 8) {
             $error_message = "Password must be at least 8 characters long.";
         } else {
-            // Verify current password
             $user_id = $_SESSION['user_id'];
-            $result = $conn->query("SELECT password FROM users WHERE id = $user_id");
-            $user = $result->fetch_assoc();
-            
-            if (password_verify($current_password, $user['password'])) {
-                // Current password is correct, generate OTP
+            $stmt = $pdo->prepare("SELECT password, email FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($user && password_verify($current_password, $user['password'])) {
                 $otp = rand(100000, 999999);
                 $_SESSION['password_change_otp'] = [
                     'otp' => $otp,
                     'new_password' => password_hash($new_password, PASSWORD_BCRYPT)
                 ];
-                
-                // Get user email
-                $email_result = $conn->query("SELECT email FROM users WHERE id = $user_id");
-                $email_data = $email_result->fetch_assoc();
-                $email = $email_data['email'];
-                
-                // Send OTP to email (in production, this would actually send an email)
+
+                $email = $user['email'];
                 $to = $email;
                 $subject = "Password Change Verification";
                 $message = "Your OTP for password change is: $otp";
                 $headers = "From: noreply@yourdomain.com";
                 @mail($to, $subject, $message, $headers);
-                
+
                 $show_otp_form = true;
                 $success_message = "OTP has been sent to your email address.";
-                
-                // For development - show OTP on screen
+
+                // Show on screen in dev
                 $dev_otp_message = "<div style='color:#b00;text-align:center;'>[DEV ONLY] Your OTP is: <b>$otp</b></div>";
             } else {
                 $error_message = "Current password is incorrect.";
             }
         }
     }
-    // Step 2: User submits OTP
+
+    // Step 2: Verify OTP
     elseif (isset($_POST['verify_password_otp'])) {
         $entered_otp = $_POST['otp'];
         $stored_otp = $_SESSION['password_change_otp']['otp'] ?? null;
-        
+
         if ($entered_otp == $stored_otp) {
-            // OTP is correct, update password
             $new_password_hash = $_SESSION['password_change_otp']['new_password'];
             $user_id = $_SESSION['user_id'];
-            
-            $conn->query("UPDATE users SET password = '$new_password_hash' WHERE id = $user_id");
-            
+
+            $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+            $stmt->execute([$new_password_hash, $user_id]);
+
             unset($_SESSION['password_change_otp']);
             $success_message = "Password changed successfully!";
         } else {
