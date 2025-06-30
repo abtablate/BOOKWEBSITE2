@@ -1,18 +1,18 @@
 <?php
 session_start();
 
-// Database credentials
-$host = '127.0.0.1';
-$dbname = 'bookwebsite';
+// Use Railway-provided credentials
+$host = 'mysql.railway.internal';
+$dbname = 'railway';
 $db_user = 'root';
-$db_pass = ''; // Replace with your real password
+$db_pass = 'kUkYvcPXnXvcQdwiTUPAQLmgIiwnFvfC'; // Replace with environment variable for security
+$db_port = 3306;
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_user, $db_pass);
+    $pdo = new PDO("mysql:host=$host;port=$db_port;dbname=$dbname;charset=utf8mb4", $db_user, $db_pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
-        // Sanitize and validate input
         $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
         $plain_password = trim($_POST['password']);
         $role = trim($_POST['role']);
@@ -22,7 +22,6 @@ try {
             exit();
         }
 
-        // Check if email already exists
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
         $stmt->execute([$email]);
 
@@ -31,14 +30,11 @@ try {
             exit();
         }
 
-        // Hash the password
         $hashed_password = password_hash($plain_password, PASSWORD_DEFAULT);
-
-        // Insert user
         $stmt = $pdo->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
         $stmt->execute([$email, $hashed_password, $role]);
 
-        echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.php';</script>";
+        echo "<script>alert('Signup successful! Please log in.'); window.location.href='login.php';</script>";
         exit();
     }
 } catch (PDOException $e) {
@@ -46,6 +42,7 @@ try {
     exit();
 }
 ?>
+
 
 
 
