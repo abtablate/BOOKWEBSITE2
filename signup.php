@@ -1,21 +1,26 @@
 <?php
-// signup.php
 session_start();
 
+// Database credentials
 $host = '127.0.0.1';
 $dbname = 'bookwebsite';
-$username = 'root';
-$password = ''; // Replace with your actual MySQL password if any
+$db_user = 'root';
+$db_pass = ''; // Replace with your real password
 
 try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    // Set PDO error mode to Exception
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $db_user, $db_pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    if (isset($_POST['signup'])) {
-        $email = $_POST['email'];
-        $plain_password = $_POST['password'];
-        $role = $_POST['role'];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
+        // Sanitize and validate input
+        $email = filter_var(trim($_POST['email']), FILTER_VALIDATE_EMAIL);
+        $plain_password = trim($_POST['password']);
+        $role = trim($_POST['role']);
+
+        if (!$email || empty($plain_password) || !in_array($role, ['admin', 'user'])) {
+            echo "<script>alert('Invalid input.'); window.location.href='signup.html';</script>";
+            exit();
+        }
 
         // Check if email already exists
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
@@ -23,19 +28,25 @@ try {
 
         if ($stmt->rowCount() > 0) {
             echo "<script>alert('Email already registered!'); window.location.href='signup.html';</script>";
-        } else {
-            $hashed_password = password_hash($plain_password, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
-            $stmt->execute([$email, $hashed_password, $role]);
-
-            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.php';</script>";
+            exit();
         }
+
+        // Hash the password
+        $hashed_password = password_hash($plain_password, PASSWORD_DEFAULT);
+
+        // Insert user
+        $stmt = $pdo->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
+        $stmt->execute([$email, $hashed_password, $role]);
+
+        echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.php';</script>";
+        exit();
     }
 } catch (PDOException $e) {
-    echo "<script>alert('Database connection failed: " . $e->getMessage() . "');</script>";
+    echo "<script>alert('Database error: " . addslashes($e->getMessage()) . "'); window.location.href='signup.html';</script>";
     exit();
 }
 ?>
+
 
 
 <!-- Add this HTML code where the signup form is located -->
