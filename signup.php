@@ -1,37 +1,42 @@
 <?php
-// filepath: c:\xampp\htdocs\EnrollmentCollege\signup.php
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
+$conn = new mysqli("127.0.0.1", "root", "", "bookwebsite"); // Use IP instead of localhost
+
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
-if (isset($_POST['signup'])) {
-    $email = $_POST['email'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
+    $email = trim($_POST['email']);
     $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-    $role = $_POST['role']; // Get the role from the form
+    $role = $_POST['role'];
 
     // Check if email already exists
-    $check = $conn->prepare("SELECT id FROM users WHERE email=?");
+    $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
     $check->bind_param("s", $email);
     $check->execute();
     $check->store_result();
 
     if ($check->num_rows > 0) {
-        echo "<script>alert('Email already registered!');window.location.href='signup.html';</script>";
+        echo "<script>alert('Email already registered!'); window.location.href='signup.html';</script>";
     } else {
         $stmt = $conn->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
         $stmt->bind_param("sss", $email, $password, $role);
+
         if ($stmt->execute()) {
-            echo "<script>alert('Sign up successful! Please log in.');window.location.href='login.html';</script>";
+            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.html';</script>";
         } else {
-            echo "<script>alert('Error: Could not sign up.');window.location.href='signup.html';</script>";
+            echo "<script>alert('Error: Could not sign up.'); window.location.href='signup.html';</script>";
         }
+
         $stmt->close();
     }
+
     $check->close();
 }
+
 $conn->close();
 ?>
+
 
 <!-- Add this HTML code where the signup form is located -->
 <select id="role" name="role" required>
