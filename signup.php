@@ -28,7 +28,7 @@ try {
             $stmt = $pdo->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
             $stmt->execute([$email, $hashed_password, $role]);
 
-            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.html';</script>";
+            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.php';</script>";
         }
     }
 } catch (PDOException $e) {
