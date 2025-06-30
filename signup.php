@@ -1,40 +1,40 @@
 <?php
-$conn = new mysqli("127.0.0.1", "root", "", "bookwebsite"); // Use IP instead of localhost
+// signup.php
+session_start();
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+$host = '127.0.0.1';
+$dbname = 'bookwebsite';
+$username = 'root';
+$password = ''; // Replace with your actual MySQL password if any
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['signup'])) {
-    $email = trim($_POST['email']);
-    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-    $role = $_POST['role'];
+try {
+    $pdo = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
+    // Set PDO error mode to Exception
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Check if email already exists
-    $check = $conn->prepare("SELECT id FROM users WHERE email = ?");
-    $check->bind_param("s", $email);
-    $check->execute();
-    $check->store_result();
+    if (isset($_POST['signup'])) {
+        $email = $_POST['email'];
+        $plain_password = $_POST['password'];
+        $role = $_POST['role'];
 
-    if ($check->num_rows > 0) {
-        echo "<script>alert('Email already registered!'); window.location.href='signup.html';</script>";
-    } else {
-        $stmt = $conn->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
-        $stmt->bind_param("sss", $email, $password, $role);
+        // Check if email already exists
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+        $stmt->execute([$email]);
 
-        if ($stmt->execute()) {
-            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.html';</script>";
+        if ($stmt->rowCount() > 0) {
+            echo "<script>alert('Email already registered!'); window.location.href='signup.html';</script>";
         } else {
-            echo "<script>alert('Error: Could not sign up.'); window.location.href='signup.html';</script>";
+            $hashed_password = password_hash($plain_password, PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO users (email, password, role) VALUES (?, ?, ?)");
+            $stmt->execute([$email, $hashed_password, $role]);
+
+            echo "<script>alert('Sign up successful! Please log in.'); window.location.href='login.html';</script>";
         }
-
-        $stmt->close();
     }
-
-    $check->close();
+} catch (PDOException $e) {
+    echo "<script>alert('Database connection failed: " . $e->getMessage() . "');</script>";
+    exit();
 }
-
-$conn->close();
 ?>
 
 
