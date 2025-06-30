@@ -70,8 +70,20 @@ $books = $pdo->query("SELECT * FROM books")->fetchAll(PDO::FETCH_ASSOC);
 // Fetch all users
 $users = $pdo->query("SELECT id, username, email FROM users")->fetchAll(PDO::FETCH_ASSOC);
 
-// TODO: Update/edit logic for books, chapters, users (can also be converted to PDO similarly)
-?>
+// Fetch current book and chapters if applicable
+$current_book_id = isset($_GET['book_id']) ? intval($_GET['book_id']) : null;
+$current_book = null;
+$chapters = [];
+
+if ($current_book_id) {
+    $stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
+    $stmt->execute([$current_book_id]);
+    $current_book = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $stmt = $pdo->prepare("SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_number ASC");
+    $stmt->execute([$current_book_id]);
+    $chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 <!DOCTYPE html>
 <html lang="en">
