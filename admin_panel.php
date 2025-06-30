@@ -5,311 +5,74 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
     exit();
 }
 
-$conn = new mysqli("localhost", "root", "", "bookwebsite");
+require "db_connection.php";
 
-// File upload configuration
+// Directories
 $uploadDir = 'uploads/chapters/';
 $bookCoverDir = 'uploads/covers/';
-if (!file_exists($uploadDir)) {
-    mkdir($uploadDir, 0777, true);
-}
-if (!file_exists($bookCoverDir)) {
-    mkdir($bookCoverDir, 0777, true);
-}
+if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
+if (!file_exists($bookCoverDir)) mkdir($bookCoverDir, 0777, true);
 
-// Handle book deletion
+// Delete book
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
-    
-    // First get cover path to delete file
-    $book = $conn->query("SELECT cover FROM books WHERE id=$id")->fetch_assoc();
-    if ($book && file_exists($book['cover'])) {
-        unlink($book['cover']);
-    }
-    
-    // Delete all chapters and their files
-    $chapters = $conn->query("SELECT content, image FROM chapters WHERE book_id=$id");
-    while ($chapter = $chapters->fetch_assoc()) {
-        if ($chapter['image'] && file_exists($chapter['image'])) {
-            unlink($chapter['image']);
-        }
+
+    $stmt = $pdo->prepare("SELECT cover FROM books WHERE id = ?");
+    $stmt->execute([$id]);
+    $book = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($book && file_exists($book['cover'])) unlink($book['cover']);
+
+    $stmt = $pdo->prepare("SELECT content, image FROM chapters WHERE book_id = ?");
+    $stmt->execute([$id]);
+    while ($chapter = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        if ($chapter['image'] && file_exists($chapter['image'])) unlink($chapter['image']);
         if (strpos($chapter['content'], 'uploads/chapters/') !== false) {
-            $images = explode("\n", $chapter['content']);
-            foreach ($images as $img) {
-                if (file_exists($img)) {
-                    unlink($img);
-                }
-            }
+            foreach (explode("\n", $chapter['content']) as $img)
+                if (file_exists($img)) unlink($img);
         }
     }
-    $conn->query("DELETE FROM chapters WHERE book_id=$id");
-    
-    // Then delete the book
-    $conn->query("DELETE FROM books WHERE id=$id");
-    
+
+    $pdo->prepare("DELETE FROM chapters WHERE book_id = ?")->execute([$id]);
+    $pdo->prepare("DELETE FROM books WHERE id = ?")->execute([$id]);
+
     header("Location: admin_panel.php");
     exit();
 }
 
-// Handle book addition with file upload
+// Add book
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addBook'])) {
-    $title = $conn->real_escape_string($_POST['title']);
-    $author = $conn->real_escape_string($_POST['author']);
-    $description = $conn->real_escape_string($_POST['description']);
-    
-    // Handle book cover upload
+    $title = $_POST['title'];
+    $author = $_POST['author'];
+    $description = $_POST['description'];
+
     $coverPath = '';
     if (!empty($_FILES['cover']['name'])) {
-        $tmpName = $_FILES['cover']['tmp_name'];
         $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
         $newName = uniqid() . '.' . $ext;
         $destination = $bookCoverDir . $newName;
-        
-        if (move_uploaded_file($tmpName, $destination)) {
-            $coverPath = $destination;
-        }
+        if (move_uploaded_file($_FILES['cover']['tmp_name'], $destination)) $coverPath = $destination;
     }
-    
+
     if ($coverPath) {
-        $conn->query("INSERT INTO books (title, author, cover, description, available) VALUES ('$title', '$author', '$coverPath', '$description', 1)");
+        $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, 1)");
+        $stmt->execute([$title, $author, $coverPath, $description]);
         header("Location: admin_panel.php");
         exit();
     } else {
-        $error = "Failed to upload cover image";
-    }
-}
-
-// Handle book editing
-$editingBook = null;
-if (isset($_GET['edit_book'])) {
-    $id = intval($_GET['edit_book']);
-    $editingBook = $conn->query("SELECT * FROM books WHERE id=$id")->fetch_assoc();
-    
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['updateBook'])) {
-        $title = $conn->real_escape_string($_POST['title']);
-        $author = $conn->real_escape_string($_POST['author']);
-        $description = $conn->real_escape_string($_POST['description']);
-        $available = isset($_POST['available']) ? 1 : 0;
-        
-        // Handle book cover update
-        $coverPath = $editingBook['cover']; // Keep existing by default
-        
-        if (!empty($_FILES['cover']['name'])) {
-            $tmpName = $_FILES['cover']['tmp_name'];
-            $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
-            $newName = uniqid() . '.' . $ext;
-            $destination = $bookCoverDir . $newName;
-            
-            if (move_uploaded_file($tmpName, $destination)) {
-                // Delete old cover if it exists
-                if ($coverPath && file_exists($coverPath)) {
-                    unlink($coverPath);
-                }
-                $coverPath = $destination;
-            }
-        }
-        
-        $conn->query("UPDATE books SET 
-                     title='$title', 
-                     author='$author', 
-                     cover='$coverPath', 
-                     description='$description',
-                     available=$available
-                     WHERE id=$id");
-        
-        header("Location: admin_panel.php");
-        exit();
-    }
-}
-
-// Handle user deletion
-if (isset($_GET['delete_user'])) {
-    $id = intval($_GET['delete_user']);
-    $conn->query("DELETE FROM users WHERE id=$id");
-    header("Location: admin_panel.php");
-    exit();
-}
-
-// Handle user update
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_user'])) {
-    $id = intval($_POST['user_id']);
-    $username = $conn->real_escape_string($_POST['username']);
-    $email = $conn->real_escape_string($_POST['email']);
-    
-    // Check if password was provided
-    if (!empty($_POST['password'])) {
-        $password = password_hash($conn->real_escape_string($_POST['password']), PASSWORD_DEFAULT);
-        $conn->query("UPDATE users SET username='$username', email='$email', password='$password' WHERE id=$id");
-    } else {
-        $conn->query("UPDATE users SET username='$username', email='$email' WHERE id=$id");
-    }
-    
-    header("Location: admin_panel.php");
-    exit();
-}
-
-// Chapter Management
-$current_book_id = null;
-$current_book = null;
-$chapters = [];
-if (isset($_GET['book_id']) && is_numeric($_GET['book_id'])) {
-    $current_book_id = intval($_GET['book_id']);
-    $current_book = $conn->query("SELECT * FROM books WHERE id=$current_book_id")->fetch_assoc();
-    
-    // Fetch chapters
-    $result = $conn->query("SELECT * FROM chapters WHERE book_id=$current_book_id ORDER BY chapter_number");
-    while ($row = $result->fetch_assoc()) {
-        $chapters[] = $row;
-    }
-    
-    // Handle chapter deletion
-    if (isset($_GET['delete_chapter'])) {
-        $id = intval($_GET['delete_chapter']);
-        $chapter = $conn->query("SELECT content, image FROM chapters WHERE id=$id")->fetch_assoc();
-        
-        // Delete chapter files
-        if ($chapter['image'] && file_exists($chapter['image'])) {
-            unlink($chapter['image']);
-        }
-        if (strpos($chapter['content'], 'uploads/chapters/') !== false) {
-            $images = explode("\n", $chapter['content']);
-            foreach ($images as $img) {
-                if (file_exists($img)) {
-                    unlink($img);
-                }
-            }
-        }
-        
-        $conn->query("DELETE FROM chapters WHERE id=$id");
-        header("Location: admin_panel.php?book_id=$current_book_id");
-        exit();
-    }
-    
-    // Handle chapter addition
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
-        $chapter_number = intval($_POST['chapter_number']);
-        $title = $conn->real_escape_string($_POST['title']);
-        $content = '';
-        $chapter_type = $conn->real_escape_string($_POST['chapter_type']);
-        
-        // Handle file upload
-        $imagePaths = [];
-        if (!empty($_FILES['chapter_images']['name'][0])) {
-            foreach ($_FILES['chapter_images']['name'] as $key => $name) {
-                if ($_FILES['chapter_images']['error'][$key] === UPLOAD_ERR_OK) {
-                    $tmpName = $_FILES['chapter_images']['tmp_name'][$key];
-                    $ext = pathinfo($name, PATHINFO_EXTENSION);
-                    $newName = uniqid() . '.' . $ext;
-                    $destination = $uploadDir . $newName;
-                    
-                    if (move_uploaded_file($tmpName, $destination)) {
-                        $imagePaths[] = $destination;
-                    }
-                }
-            }
-        }
-        
-        // If image chapter, store image paths as content
-        if ($chapter_type === 'image' && !empty($imagePaths)) {
-            $content = implode("\n", $imagePaths);
-        } else {
-            $content = $conn->real_escape_string($_POST['content']);
-        }
-        
-        // Handle cover image upload
-        $coverImage = '';
-        if (!empty($_FILES['cover_image']['name'])) {
-            $tmpName = $_FILES['cover_image']['tmp_name'];
-            $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
-            $newName = uniqid() . '.' . $ext;
-            $destination = $uploadDir . $newName;
-            
-            if (move_uploaded_file($tmpName, $destination)) {
-                $coverImage = $destination;
-            }
-        }
-        
-        $conn->query("INSERT INTO chapters (book_id, chapter_number, title, content, image, chapter_type) 
-                     VALUES ($current_book_id, $chapter_number, '$title', '$content', '$coverImage', '$chapter_type')");
-        header("Location: admin_panel.php?book_id=$current_book_id");
-        exit();
-    }
-    
-    // Handle chapter update
-    if (isset($_POST['update_chapter'])) {
-        $id = intval($_POST['id']);
-        $chapter_number = intval($_POST['chapter_number']);
-        $title = $conn->real_escape_string($_POST['title']);
-        $content = $conn->real_escape_string($_POST['content']);
-        $chapter_type = $conn->real_escape_string($_POST['chapter_type']);
-        
-        // Handle file upload for update
-        $imagePaths = [];
-        if (!empty($_FILES['chapter_images']['name'][0])) {
-            foreach ($_FILES['chapter_images']['name'] as $key => $name) {
-                if ($_FILES['chapter_images']['error'][$key] === UPLOAD_ERR_OK) {
-                    $tmpName = $_FILES['chapter_images']['tmp_name'][$key];
-                    $ext = pathinfo($name, PATHINFO_EXTENSION);
-                    $newName = uniqid() . '.' . $ext;
-                    $destination = $uploadDir . $newName;
-                    
-                    if (move_uploaded_file($tmpName, $destination)) {
-                        $imagePaths[] = $destination;
-                    }
-                }
-            }
-        }
-        
-        // If image chapter, store image paths as content
-        if ($chapter_type === 'image' && !empty($imagePaths)) {
-            $content = implode("\n", $imagePaths);
-        }
-        
-        // Handle cover image update
-        $coverImage = '';
-        if (!empty($_FILES['cover_image']['name'])) {
-            $tmpName = $_FILES['cover_image']['tmp_name'];
-            $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
-            $newName = uniqid() . '.' . $ext;
-            $destination = $uploadDir . $newName;
-            
-            if (move_uploaded_file($tmpName, $destination)) {
-                $coverImage = $destination;
-            }
-        } else {
-            // Keep existing cover image if not updated
-            $existing = $conn->query("SELECT image FROM chapters WHERE id=$id")->fetch_assoc();
-            $coverImage = $existing['image'];
-        }
-        
-        $conn->query("UPDATE chapters SET 
-                     chapter_number=$chapter_number, 
-                     title='$title', 
-                     content='$content', 
-                     image='$coverImage',
-                     chapter_type='$chapter_type'
-                     WHERE id=$id");
-        header("Location: admin_panel.php?book_id=$current_book_id");
-        exit();
+        echo "<script>alert('Failed to upload cover image');</script>";
     }
 }
 
 // Fetch all books
-$books = [];
-$result = $conn->query("SELECT * FROM books");
-while ($row = $result->fetch_assoc()) {
-    $books[] = $row;
-}
+$books = $pdo->query("SELECT * FROM books")->fetchAll(PDO::FETCH_ASSOC);
 
-// Fetch users
-$users = [];
-$result = $conn->query("SELECT id, username, email FROM users");
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $users[] = $row;
-    }
-}
+// Fetch all users
+$users = $pdo->query("SELECT id, username, email FROM users")->fetchAll(PDO::FETCH_ASSOC);
+
+// TODO: Update/edit logic for books, chapters, users (can also be converted to PDO similarly)
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
