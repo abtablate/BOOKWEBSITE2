@@ -7,6 +7,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
 
 require "db_connection.php";
 
+// Directories
 $uploadDir = 'uploads/chapters/';
 $bookCoverDir = 'uploads/covers/';
 if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
@@ -36,36 +37,32 @@ if (isset($_GET['delete'])) {
     exit();
 }
 
-// Add or Update Book
+// Add or Edit Book
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset($_POST['updateBook']))) {
     $title = $_POST['title'];
     $author = $_POST['author'];
     $description = $_POST['description'];
     $available = isset($_POST['available']) ? 1 : 0;
-
     $coverPath = '';
+
     if (!empty($_FILES['cover']['name'])) {
         $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
         $newName = uniqid() . '.' . $ext;
         $destination = $bookCoverDir . $newName;
-        if (move_uploaded_file($_FILES['cover']['tmp_name'], $destination)) {
-            $coverPath = $destination;
-        }
+        if (move_uploaded_file($_FILES['cover']['tmp_name'], $destination)) $coverPath = $destination;
     }
 
     if (isset($_POST['addBook'])) {
-        $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$title, $author, $coverPath, $description, $available]);
-    } else {
-        $book_id = $_POST['book_id'];
-        $query = "UPDATE books SET title=?, author=?, description=?, available=?";
-        $params = [$title, $author, $description, $available];
         if ($coverPath) {
-            $query .= ", cover=?";
-            $params[] = $coverPath;
+            $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$title, $author, $coverPath, $description, $available]);
         }
-        $query .= " WHERE id=?";
-        $params[] = $book_id;
+    } else {
+        $id = $_POST['book_id'];
+        $query = "UPDATE books SET title=?, author=?, description=?, available=?" . ($coverPath ? ", cover=?" : "") . " WHERE id=?";
+        $params = [$title, $author, $description, $available];
+        if ($coverPath) $params[] = $coverPath;
+        $params[] = $id;
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
     }
@@ -73,10 +70,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset(
     exit();
 }
 
-// Add or Update Chapter
+// Add or Edit Chapter
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
     $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-    $book_id = $_POST['book_id'];
+    $book_id = isset($_POST['book_id']) ? intval($_POST['book_id']) : 0;
+    if ($book_id === 0) {
+        die("Invalid book_id");
+    }
+
     $chapter_number = $_POST['chapter_number'];
     $title = $_POST['title'];
     $chapter_type = $_POST['chapter_type'];
@@ -125,8 +126,6 @@ $users = $pdo->query("SELECT id, username, email FROM users")->fetchAll(PDO::FET
 $current_book_id = isset($_GET['book_id']) ? intval($_GET['book_id']) : null;
 $current_book = null;
 $chapters = [];
-$editingBook = null;
-
 if ($current_book_id) {
     $stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
     $stmt->execute([$current_book_id]);
@@ -137,6 +136,7 @@ if ($current_book_id) {
     $chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+$editingBook = null;
 if (isset($_GET['edit_book'])) {
     $edit_id = intval($_GET['edit_book']);
     $stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
@@ -144,6 +144,7 @@ if (isset($_GET['edit_book'])) {
     $editingBook = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
