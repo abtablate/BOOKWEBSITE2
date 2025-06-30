@@ -13,125 +13,61 @@ $bookCoverDir = 'uploads/covers/';
 if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
 if (!file_exists($bookCoverDir)) mkdir($bookCoverDir, 0777, true);
 
-// Add or Edit Book
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['addBook']) || isset($_POST['updateBook'])) {
-        $title = $_POST['title'];
-        $author = $_POST['author'];
-        $description = $_POST['description'];
-        $available = isset($_POST['available']) ? 1 : 0;
+// Validate book_id if exists
+$current_book_id = isset($_GET['book_id']) && is_numeric($_GET['book_id']) ? intval($_GET['book_id']) : null;
 
-        $coverPath = '';
-        if (!empty($_FILES['cover']['name'])) {
-            $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
-            $newName = uniqid() . '.' . $ext;
-            $destination = $bookCoverDir . $newName;
-            if (move_uploaded_file($_FILES['cover']['tmp_name'], $destination)) {
-                $coverPath = $destination;
-            }
-        }
+// Add or Edit Chapter
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
+    $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
+    $book_id = isset($_POST['book_id']) && is_numeric($_POST['book_id']) ? intval($_POST['book_id']) : 0;
 
-        if (isset($_POST['addBook'])) {
-            if ($coverPath) {
-                $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$title, $author, $coverPath, $description, $available]);
-            }
-        } else {
-            $book_id = intval($_POST['book_id']);
-            $params = [$title, $author, $description, $available];
-            $sql = "UPDATE books SET title=?, author=?, description=?, available=?";
-            if ($coverPath) {
-                $sql .= ", cover=?";
-                $params[] = $coverPath;
-            }
-            $sql .= " WHERE id=?";
-            $params[] = $book_id;
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-        }
-        header("Location: admin_panel.php");
+    if ($book_id <= 0) {
+        echo "<script>alert('Invalid book ID'); window.location.href='admin_panel.php';</script>";
         exit();
     }
 
-    // Add or Edit Chapter
-    if (isset($_POST['addChapter'])) {
-        $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-        $book_id = isset($_POST['book_id']) ? intval($_POST['book_id']) : 0;
-        $chapter_number = $_POST['chapter_number'];
-        $title = $_POST['title'];
-        $chapter_type = $_POST['chapter_type'];
-        $content = $chapter_type === 'text' ? $_POST['content'] : '';
-        $coverImagePath = '';
+    $chapter_number = $_POST['chapter_number'] ?? '';
+    $title = $_POST['title'] ?? '';
+    $chapter_type = $_POST['chapter_type'] ?? 'text';
+    $content = $chapter_type === 'text' ? ($_POST['content'] ?? '') : '';
+    $coverImagePath = '';
 
-        if (!empty($_FILES['cover_image']['name'])) {
-            $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
-            $coverName = uniqid('chapter_cover_') . '.' . $ext;
-            $coverDestination = $uploadDir . $coverName;
-            if (move_uploaded_file($_FILES['cover_image']['tmp_name'], $coverDestination)) {
-                $coverImagePath = $coverDestination;
-            }
+    if (!empty($_FILES['cover_image']['name'])) {
+        $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
+        $coverName = uniqid('chapter_cover_') . '.' . $ext;
+        $coverDestination = $uploadDir . $coverName;
+        if (move_uploaded_file($_FILES['cover_image']['tmp_name'], $coverDestination)) {
+            $coverImagePath = $coverDestination;
         }
+    }
 
-        if ($chapter_type === 'image' && isset($_FILES['chapter_images'])) {
-            $imagePaths = [];
-            foreach ($_FILES['chapter_images']['tmp_name'] as $index => $tmpPath) {
-                if (!empty($_FILES['chapter_images']['name'][$index])) {
-                    $ext = pathinfo($_FILES['chapter_images']['name'][$index], PATHINFO_EXTENSION);
-                    $imgName = uniqid('img_') . '.' . $ext;
-                    $targetPath = $uploadDir . $imgName;
-                    if (move_uploaded_file($tmpPath, $targetPath)) {
-                        $imagePaths[] = $targetPath;
-                    }
+    if ($chapter_type === 'image' && isset($_FILES['chapter_images'])) {
+        $imagePaths = [];
+        foreach ($_FILES['chapter_images']['tmp_name'] as $index => $tmpPath) {
+            if (!empty($_FILES['chapter_images']['name'][$index])) {
+                $ext = pathinfo($_FILES['chapter_images']['name'][$index], PATHINFO_EXTENSION);
+                $imgName = uniqid('img_') . '.' . $ext;
+                $targetPath = $uploadDir . $imgName;
+                if (move_uploaded_file($tmpPath, $targetPath)) {
+                    $imagePaths[] = $targetPath;
                 }
             }
-            $content = implode("\n", $imagePaths);
         }
-
-        if ($book_id <= 0) {
-            echo "<script>alert('Invalid book_id.'); window.location.href='admin_panel.php';</script>";
-            exit();
-        }
-
-        if ($chapter_id > 0) {
-            $stmt = $pdo->prepare("UPDATE chapters SET chapter_number=?, title=?, content=?, image=?, chapter_type=? WHERE id=?");
-            $stmt->execute([$chapter_number, $title, $content, $coverImagePath, $chapter_type, $chapter_id]);
-        } else {
-            $stmt = $pdo->prepare("INSERT INTO chapters (book_id, chapter_number, title, content, image, chapter_type) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$book_id, $chapter_number, $title, $content, $coverImagePath, $chapter_type]);
-        }
-
-        header("Location: admin_panel.php?book_id=$book_id");
-        exit();
+        $content = implode("\n", $imagePaths);
     }
-}
 
-// Handle book edit view
-$editingBook = null;
-if (isset($_GET['edit_book'])) {
-    $bookId = intval($_GET['edit_book']);
-    $stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
-    $stmt->execute([$bookId]);
-    $editingBook = $stmt->fetch(PDO::FETCH_ASSOC);
-}
-
-// Fetch books and users
-$books = $pdo->query("SELECT * FROM books")->fetchAll(PDO::FETCH_ASSOC);
-$users = $pdo->query("SELECT id, username, email FROM users")->fetchAll(PDO::FETCH_ASSOC);
-
-// Fetch chapters if book is selected
-$current_book_id = isset($_GET['book_id']) ? intval($_GET['book_id']) : 0;
-$current_book = null;
-$chapters = [];
-if ($current_book_id > 0) {
-    $stmt = $pdo->prepare("SELECT * FROM books WHERE id = ?");
-    $stmt->execute([$current_book_id]);
-    $current_book = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $stmt = $pdo->prepare("SELECT * FROM chapters WHERE book_id = ? ORDER BY chapter_number ASC");
-    $stmt->execute([$current_book_id]);
-    $chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($chapter_id > 0) {
+        $stmt = $pdo->prepare("UPDATE chapters SET chapter_number=?, title=?, content=?, image=?, chapter_type=? WHERE id=?");
+        $stmt->execute([$chapter_number, $title, $content, $coverImagePath, $chapter_type, $chapter_id]);
+    } else {
+        $stmt = $pdo->prepare("INSERT INTO chapters (book_id, chapter_number, title, content, image, chapter_type) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$book_id, $chapter_number, $title, $content, $coverImagePath, $chapter_type]);
+    }
+    header("Location: admin_panel.php?book_id=$book_id");
+    exit();
 }
 ?>
+
 
 
 
