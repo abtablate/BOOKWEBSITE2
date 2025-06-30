@@ -84,7 +84,7 @@ if ($current_book_id) {
     $stmt->execute([$current_book_id]);
     $chapters = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
-
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
