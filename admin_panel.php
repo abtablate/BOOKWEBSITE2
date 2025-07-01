@@ -38,54 +38,16 @@ if (isset($_GET['delete'])) {
 }
 
 // ADD OR UPDATE BOOK
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset($_POST['updateBook']))) {
-    $title = $_POST['title'];
-    $author = $_POST['author'];
-    $description = $_POST['description'];
-    $available = isset($_POST['available']) ? 1 : 0;
-
-    $coverPath = null;
-    if (!empty($_FILES['cover']['name'])) {
-        $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
-        $newName = uniqid() . '.' . $ext;
-        $destination = $bookCoverDir . $newName;
-        if (move_uploaded_file($_FILES['cover']['tmp_name'], $destination)) {
-            $coverPath = $destination;
-        }
-    }
-
-    if (isset($_POST['addBook'])) {
-        $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$title, $author, $coverPath, $description, $available]);
-    } else {
-        $book_id = $_POST['book_id'];
-        $query = "UPDATE books SET title=?, author=?, description=?, available=?";
-        $params = [$title, $author, $description, $available];
-        if ($coverPath) {
-            $query .= ", cover=?";
-            $params[] = $coverPath;
-        }
-        $query .= " WHERE id=?";
-        $params[] = $book_id;
-        $stmt = $pdo->prepare($query);
-        $stmt->execute($params);
-    }
-
-    header("Location: admin_panel.php");
-    exit();
-}
-
-// ADD OR UPDATE CHAPTER
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
     $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-    $book_id = intval($_POST['book_id']);
+    $book_id = isset($_POST['book_id']) ? intval($_POST['book_id']) : 0;
     $chapter_number = $_POST['chapter_number'];
     $title = $_POST['title'];
     $chapter_type = $_POST['chapter_type'];
-
     $content = $chapter_type === 'text' ? $_POST['content'] : '';
-    $coverImagePath = null;
+    $coverImagePath = '';
 
+    // Upload chapter cover image
     if (!empty($_FILES['cover_image']['name'])) {
         $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
         $coverName = uniqid('chapter_cover_') . '.' . $ext;
@@ -95,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
         }
     }
 
+    // Upload image-type chapter content
     if ($chapter_type === 'image' && isset($_FILES['chapter_images'])) {
         $imagePaths = [];
         foreach ($_FILES['chapter_images']['tmp_name'] as $i => $tmp) {
@@ -116,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
             $chapter_number,
             $title,
             $content,
-            $coverImagePath ?? null,
+            $coverImagePath ?: '',
             $chapter_type,
             $chapter_id
         ]);
@@ -127,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
             $chapter_number,
             $title,
             $content,
-            $coverImagePath ?? null,
+            $coverImagePath ?: '',
             $chapter_type
         ]);
     }
