@@ -38,9 +38,9 @@ if (isset($_GET['delete'])) {
 
 // Add or Update Book
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset($_POST['updateBook']))) {
-    $title = $_POST['title'];
-    $author = $_POST['author'];
-    $description = $_POST['description'];
+    $title = $_POST['title'] ?? '';
+    $author = $_POST['author'] ?? '';
+    $description = $_POST['description'] ?? '';
     $available = isset($_POST['available']) ? 1 : 0;
 
     $coverPath = '';
@@ -56,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset(
     if (isset($_POST['addBook'])) {
         $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$title, $author, $coverPath, $description, $available]);
-    } else {
-        $book_id = $_POST['book_id'];
+    } elseif (isset($_POST['book_id']) && is_numeric($_POST['book_id'])) {
+        $book_id = intval($_POST['book_id']);
         $query = "UPDATE books SET title=?, author=?, description=?, available=?";
         $params = [$title, $author, $description, $available];
         if ($coverPath) {
@@ -76,11 +76,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset(
 // Add or Update Chapter
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
     $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-    $book_id = $_POST['book_id'];
-    $chapter_number = $_POST['chapter_number'];
-    $title = $_POST['title'];
-    $chapter_type = $_POST['chapter_type'];
-    $content = $chapter_type === 'text' ? $_POST['content'] : '';
+    $book_id = $_POST['book_id'] ?? 0;
+    $chapter_number = $_POST['chapter_number'] ?? '';
+    $title = $_POST['title'] ?? '';
+    $chapter_type = $_POST['chapter_type'] ?? 'text';
+    $content = $chapter_type === 'text' ? ($_POST['content'] ?? '') : '';
     $coverImagePath = '';
 
     if (!empty($_FILES['cover_image']['name'])) {
