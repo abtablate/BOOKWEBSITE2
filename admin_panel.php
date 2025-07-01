@@ -12,21 +12,22 @@ $bookCoverDir = 'uploads/covers/';
 if (!file_exists($uploadDir)) mkdir($uploadDir, 0777, true);
 if (!file_exists($bookCoverDir)) mkdir($bookCoverDir, 0777, true);
 
-// Delete book
+// DELETE BOOK
 if (isset($_GET['delete'])) {
     $id = intval($_GET['delete']);
+
     $stmt = $pdo->prepare("SELECT cover FROM books WHERE id = ?");
     $stmt->execute([$id]);
-    $book = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($book && file_exists($book['cover'])) unlink($book['cover']);
+    if ($book = $stmt->fetch()) {
+        if ($book['cover'] && file_exists($book['cover'])) unlink($book['cover']);
+    }
 
     $stmt = $pdo->prepare("SELECT content, image FROM chapters WHERE book_id = ?");
     $stmt->execute([$id]);
-    while ($chapter = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    while ($chapter = $stmt->fetch()) {
         if ($chapter['image'] && file_exists($chapter['image'])) unlink($chapter['image']);
-        if (strpos($chapter['content'], 'uploads/chapters/') !== false) {
-            foreach (explode("\n", $chapter['content']) as $img)
-                if (file_exists($img)) unlink($img);
+        foreach (explode("\n", $chapter['content']) as $line) {
+            if (str_starts_with($line, $uploadDir) && file_exists($line)) unlink($line);
         }
     }
 
@@ -36,14 +37,14 @@ if (isset($_GET['delete'])) {
     exit();
 }
 
-// Add or Update Book
+// ADD OR UPDATE BOOK
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset($_POST['updateBook']))) {
-    $title = $_POST['title'] ?? '';
-    $author = $_POST['author'] ?? '';
-    $description = $_POST['description'] ?? '';
+    $title = $_POST['title'];
+    $author = $_POST['author'];
+    $description = $_POST['description'];
     $available = isset($_POST['available']) ? 1 : 0;
 
-    $coverPath = '';
+    $coverPath = null;
     if (!empty($_FILES['cover']['name'])) {
         $ext = pathinfo($_FILES['cover']['name'], PATHINFO_EXTENSION);
         $newName = uniqid() . '.' . $ext;
@@ -56,8 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset(
     if (isset($_POST['addBook'])) {
         $stmt = $pdo->prepare("INSERT INTO books (title, author, cover, description, available) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$title, $author, $coverPath, $description, $available]);
-    } elseif (isset($_POST['book_id']) && is_numeric($_POST['book_id'])) {
-        $book_id = intval($_POST['book_id']);
+    } else {
+        $book_id = $_POST['book_id'];
         $query = "UPDATE books SET title=?, author=?, description=?, available=?";
         $params = [$title, $author, $description, $available];
         if ($coverPath) {
@@ -69,19 +70,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['addBook']) || isset(
         $stmt = $pdo->prepare($query);
         $stmt->execute($params);
     }
+
     header("Location: admin_panel.php");
     exit();
 }
 
-// Add or Update Chapter
+// ADD OR UPDATE CHAPTER
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
     $chapter_id = isset($_POST['chapter_id']) ? intval($_POST['chapter_id']) : 0;
-    $book_id = $_POST['book_id'] ?? 0;
-    $chapter_number = $_POST['chapter_number'] ?? '';
-    $title = $_POST['title'] ?? '';
-    $chapter_type = $_POST['chapter_type'] ?? 'text';
-    $content = $chapter_type === 'text' ? ($_POST['content'] ?? '') : '';
-    $coverImagePath = '';
+    $book_id = intval($_POST['book_id']);
+    $chapter_number = $_POST['chapter_number'];
+    $title = $_POST['title'];
+    $chapter_type = $_POST['chapter_type'];
+
+    $content = $chapter_type === 'text' ? $_POST['content'] : '';
+    $coverImagePath = null;
 
     if (!empty($_FILES['cover_image']['name'])) {
         $ext = pathinfo($_FILES['cover_image']['name'], PATHINFO_EXTENSION);
@@ -94,12 +97,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
 
     if ($chapter_type === 'image' && isset($_FILES['chapter_images'])) {
         $imagePaths = [];
-        foreach ($_FILES['chapter_images']['tmp_name'] as $index => $tmpPath) {
-            if (!empty($_FILES['chapter_images']['name'][$index])) {
-                $ext = pathinfo($_FILES['chapter_images']['name'][$index], PATHINFO_EXTENSION);
+        foreach ($_FILES['chapter_images']['tmp_name'] as $i => $tmp) {
+            if (!empty($_FILES['chapter_images']['name'][$i])) {
+                $ext = pathinfo($_FILES['chapter_images']['name'][$i], PATHINFO_EXTENSION);
                 $imgName = uniqid('img_') . '.' . $ext;
                 $targetPath = $uploadDir . $imgName;
-                if (move_uploaded_file($tmpPath, $targetPath)) {
+                if (move_uploaded_file($tmp, $targetPath)) {
                     $imagePaths[] = $targetPath;
                 }
             }
@@ -109,16 +112,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['addChapter'])) {
 
     if ($chapter_id > 0) {
         $stmt = $pdo->prepare("UPDATE chapters SET chapter_number=?, title=?, content=?, image=?, chapter_type=? WHERE id=?");
-        $stmt->execute([$chapter_number, $title, $content, $coverImagePath, $chapter_type, $chapter_id]);
+        $stmt->execute([
+            $chapter_number,
+            $title,
+            $content,
+            $coverImagePath ?? null,
+            $chapter_type,
+            $chapter_id
+        ]);
     } else {
         $stmt = $pdo->prepare("INSERT INTO chapters (book_id, chapter_number, title, content, image, chapter_type) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$book_id, $chapter_number, $title, $content, $coverImagePath, $chapter_type]);
+        $stmt->execute([
+            $book_id,
+            $chapter_number,
+            $title,
+            $content,
+            $coverImagePath ?? null,
+            $chapter_type
+        ]);
     }
+
     header("Location: admin_panel.php?book_id=$book_id");
     exit();
 }
 
-// Fetch data
+// FETCH DATA
 $books = $pdo->query("SELECT * FROM books")->fetchAll(PDO::FETCH_ASSOC);
 $users = $pdo->query("SELECT id, username, email FROM users")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -144,7 +162,6 @@ if (isset($_GET['edit_book'])) {
     $editingBook = $stmt->fetch(PDO::FETCH_ASSOC);
 }
 ?>
-
 
 
 <!DOCTYPE html>
